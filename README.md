@@ -182,6 +182,54 @@ Funcion fabrica que crea un Transformer completo y lo inicializa.
 - Inicializa pesos con Xavier uniforme para parametros matriciales.
 - Devuelve un objeto listo para entrenar.
 
+## Modificacion pedida: primera mitad con 32 heads y segunda mitad con 2 heads
+
+Esta version ya esta adaptada en [modelo.py](modelo.py) para cumplir:
+
+- Primeras capas: 32 cabezas de atencion.
+- Ultimas capas: 2 cabezas de atencion.
+
+### Donde se modifica
+
+En la funcion `build_transformer(...)` de [modelo.py](modelo.py):
+
+1. Se elimina el parametro global `h` (ya no hay un unico numero de heads para todas las capas).
+2. Se define una lista por profundidad:
+    - `heads_per_layer = [32] * (N // 2) + [2] * (N - N // 2)`
+3. En los bucles de creacion de bloques, cada capa usa su propio `layer_heads`:
+    - Encoder: `MultiHeadAttentionBlock(d_model, layer_heads, dropout)`
+    - Decoder self-attention: `MultiHeadAttentionBlock(d_model, layer_heads, dropout)`
+    - Decoder cross-attention: `MultiHeadAttentionBlock(d_model, layer_heads, dropout)`
+4. Se anaden validaciones:
+    - `N >= 2` para poder dividir en dos partes.
+    - `d_model % layer_heads == 0` para cada capa.
+
+### Como queda la distribucion
+
+Si `N = 6`, entonces:
+
+- Capas 0, 1, 2 -> 32 heads
+- Capas 3, 4, 5 -> 2 heads
+
+Si `N` es impar, la primera parte usa `N // 2` capas y la segunda usa el resto.
+
+### Impacto en numero de parametros aprendidos
+
+El numero de parametros aprendidos **no cambia** respecto a la implementacion original (con `h` fijo), siempre que `d_model` se mantenga igual.
+
+Motivo:
+
+- En cada bloque de atencion, las matrices entrenables siguen siendo:
+  - `Wq`, `Wk`, `Wv`, `Wo`
+- Cada una tiene tamano `d_model x d_model`.
+- Cambiar el numero de heads solo cambia la particion interna (`d_k = d_model / h`), no el tamano total de esas matrices.
+
+Por tanto, para cada bloque de atencion el total sigue siendo proporcional a `4 * d_model^2`, igual que antes.
+
+## Nota de compatibilidad
+
+Como `build_transformer(...)` ya no recibe `h`, cualquier llamada antigua con `h=...` debe eliminar ese argumento.
+
 ## Flujo del modelo
 
 1. Tokens de entrada -> embeddings
