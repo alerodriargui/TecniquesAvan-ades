@@ -230,6 +230,78 @@ Por tanto, para cada bloque de atencion el total sigue siendo proporcional a `4 
 
 Como `build_transformer(...)` ya no recibe `h`, cualquier llamada antigua con `h=...` debe eliminar ese argumento.
 
+## Modificacion: GREEDY DECODING vs SAMPLING
+
+El Transformer luego de entrenar genera tokens de forma autoregresiva. Existen dos enfoques principales:
+
+### Problema original: SOLO ARGMAX
+
+En una implementacion basica, el token predicho es siempre el de maxima probabilidad:
+
+```python
+# Esquema original (GREEDY)
+logits = model.project(decoder_output)  # (batch, seq_len, vocab_size)
+next_token = logits[:, -1, :].argmax(dim=-1)  # Toma el token mas probable
+```
+
+Desventaja: output determinista y repetitivo.
+
+### Solucion: SAMPLING
+
+Se muestrea un token siguiendo la distribucion de probabilidades en lugar de tomar el argmax:
+
+```python
+# NUEVO: SAMPLING
+logits = model.project(decoder_output)  # (batch, seq_len, vocab_size)
+probs = torch.softmax(logits[:, -1, :], dim=-1)  # Convierte a probabilidades
+next_token = torch.multinomial(probs, num_samples=1)  # Muestrea segun distribucion
+```
+
+Ventajas:
+- Output estocastico (variable en cada ejecucion).
+- Diversidad en las predicciones.
+- Puede generar texto mas natural y menos repetitivo.
+
+### Como modificar el codigo
+
+1. **Crear funcion de inferencia** (no existe en [modelo.py](modelo.py)):
+   - Inicializar con token de inicio.
+   - Loop autoregresivo hasta `max_len`:
+     - Codificar fuente y decodificar target.
+     - Proyectar a logits.
+     - Aplicar SOFTMAX.
+     - MUESTREAR con `torch.multinomial()`.
+     - Concatenar nuevo token y repetir.
+
+2. **Lugar del cambio**: En [inference.py](inference.py) ya esta implementado con:
+   - `decode_greedy()`: Argmax clasico.
+   - `decode_sampling()`: Muestreo con temperatura.
+   - `decode_top_k()`: Hibrido (muestrea solo entre top-k).
+
+### Comparativa: ARGMAX vs MULTINOMIAL
+
+| Aspecto | ARGMAX (Greedy) | MULTINOMIAL (Sampling) |
+|---------|-----------------|------------------------|
+| Predictibilidad | Determinista | Estocastico |
+| Token elegido | Maxima probabilidad | Segun distribucion |
+| Diversidad | Baja (repetitivo) | Alta (variado) |
+| Calidad | Puede ser mecanico | Mas natural |
+| Speed | Mas rapido | Igual (solo softmax + muestreo) |
+
+### Control de diversidad: TEMPERATURA
+
+Se puede controlar la "temperatura" de muestreo multiplicando logits antes de softmax:
+
+- `temperature < 1.0`: distribucion concentrada, menos diversidad.
+- `temperature = 1.0`: distribucion normal.
+- `temperature > 1.0`: distribucion dispersa, mas diversidad.
+
+```python
+scaled_logits = logits / temperature
+probs = torch.softmax(scaled_logits, dim=-1)
+next_token = torch.multinomial(probs, num_samples=1)
+```
+
 ## Flujo del modelo
 
 1. Tokens de entrada -> embeddings
