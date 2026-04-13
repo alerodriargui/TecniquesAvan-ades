@@ -485,7 +485,320 @@ Explain the role of contiguous() in tensor reshaping.
 
 ---
 
+# 🧩 Más preguntas SOLO de modificar código (muy probables)
+
+---
+
+## 26. Quitar bias en todas las capas lineales
+
+### ❓ Pregunta
+
+Modify the model to remove bias from all linear layers.
+
+### 📍 Dónde
+
+En todos los `nn.Linear`
+
+### ✅ Respuesta
+
+Cambiar:
+
+```python
+nn.Linear(in, out)
+```
+
+por:
+
+```python
+nn.Linear(in, out, bias=False)
+```
+
+---
+
+## 27. Añadir dropout en embeddings
+
+### ❓ Pregunta
+
+Add dropout after embeddings.
+
+### 📍 Dónde
+
+`InputEmbeddings`
+
+### ✅ Respuesta
+
+En `__init__`:
+
+```python
+self.dropout = nn.Dropout(dropout)
+```
+
+En `forward`:
+
+```python
+return self.dropout(self.embedding(x) * math.sqrt(self.d_model))
+```
+
+---
+
+## 28. Cambiar activación por LeakyReLU
+
+### ❓ Pregunta
+
+Replace ReLU with LeakyReLU.
+
+### 📍 Dónde
+
+`FeedForwardBlock`
+
+### ✅ Respuesta
+
+```python
+torch.nn.functional.leaky_relu(...)
+```
+
+---
+
+## 29. Añadir normalización final al decoder
+
+### ❓ Pregunta
+
+Ensure decoder output is normalized before projection.
+
+### 📍 Dónde
+
+`Decoder`
+
+### ✅ Respuesta
+
+Ya existe, pero si no:
+
+```python
+return self.norm(x)
+```
+
+---
+
+## 30. Quitar residual connections
+
+### ❓ Pregunta
+
+Remove residual connections.
+
+### 📍 Dónde
+
+`ResidualConnection`
+
+### ✅ Respuesta
+
+```python
+return self.dropout(sublayer(self.norm(x)))
+```
+
+---
+
+## 31. Usar misma atención en encoder y decoder
+
+### ❓ Pregunta
+
+Share attention weights between encoder and decoder.
+
+### 📍 Dónde
+
+`build_transformer`
+
+### ✅ Respuesta
+
+Crear una instancia y reutilizarla:
+
+```python
+shared_attention = MultiHeadAttentionBlock(...)
+```
+
+---
+
+## 32. Cambiar inicialización de pesos
+
+### ❓ Pregunta
+
+Replace Xavier initialization with normal initialization.
+
+### 📍 Dónde
+
+Final de `build_transformer`
+
+### ✅ Respuesta
+
+```python
+nn.init.normal_(p, mean=0, std=0.02)
+```
+
+---
+
+## 33. Añadir capa extra en FFN
+
+### ❓ Pregunta
+
+Add an extra linear layer to the feed-forward block.
+
+### 📍 Dónde
+
+`FeedForwardBlock`
+
+### ✅ Respuesta
+
+Añadir:
+
+```python
+self.linear_3 = nn.Linear(d_ff, d_ff)
+```
+
+Y forward:
+
+```python
+return self.linear_2(self.dropout(torch.relu(self.linear_3(torch.relu(self.linear_1(x))))))
+```
+
+---
+
+## 34. Cambiar orden Dropout
+
+### ❓ Pregunta
+
+Apply dropout before linear transformation.
+
+### 📍 Dónde
+
+`FeedForwardBlock`
+
+### ✅ Respuesta
+
+Mover dropout antes de linear_2
+
+---
+
+## 35. Quitar cross-attention
+
+### ❓ Pregunta
+
+Remove cross-attention from decoder.
+
+### 📍 Dónde
+
+`DecoderBlock`
+
+### ✅ Respuesta
+
+Eliminar:
+
+```python
+self.cross_attention_block
+```
+
+y su uso en forward
+
+---
+
+## 36. Añadir máscara al encoder
+
+### ❓ Pregunta
+
+Ensure encoder uses padding mask.
+
+### 📍 Dónde
+
+`EncoderBlock`
+
+### ✅ Respuesta
+
+Ya se pasa como `src_mask`, asegurarse de usarlo en self-attention
+
+---
+
+## 37. Cambiar view por reshape
+
+### ❓ Pregunta
+
+Replace view with reshape.
+
+### 📍 Dónde
+
+MultiHeadAttention
+
+### ✅ Respuesta
+
+```python
+tensor.reshape(...)
+```
+
+---
+
+## 38. Eliminar softmax en atención
+
+### ❓ Pregunta
+
+Remove softmax from attention.
+
+### 📍 Dónde
+
+`attention`
+
+### ✅ Respuesta
+
+Eliminar:
+
+```python
+.softmax(dim=-1)
+```
+
+---
+
+## 39. Añadir capa final de activación
+
+### ❓ Pregunta
+
+Add activation after projection.
+
+### 📍 Dónde
+
+`ProjectionLayer`
+
+### ✅ Respuesta
+
+```python
+torch.softmax(self.proj(x), dim=-1)
+```
+
+---
+
+## 40. Cambiar máscara por -inf
+
+### ❓ Pregunta
+
+Use -inf instead of -1e9.
+
+### 📍 Dónde
+
+`attention`
+
+### ✅ Respuesta
+
+```python
+float('-inf')
+```
+
+---
+
 # 🚀 Resumen Final
+
+Dominar:
+
+* MultiHeadAttention
+* Mask
+* Residual + LayerNorm
+* build_transformer
+
+---
 
 Dominar:
 
